@@ -27,20 +27,20 @@ export const ConversationSection: React.FC<ConversationSectionProps> = ({
 }) => {
   return (
     <div className="flex flex-col h-full bg-gray-800 rounded-xl p-6 shadow-lg">
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center mb-4">
         <span className="text-sm font-medium text-gray-300">
           Question {currentQuestion + 1} of {questions.length}
         </span>
         <Timer duration={150} onTimeUp={onTimeUp} />
       </div>
 
-      <div className="mb-6">
-        <h3 className="text-xl font-semibold text-white">
+      <div className="mb-4">
+        <h3 className="text-lg font-semibold text-white">
           {questions[currentQuestion].question}
         </h3>
       </div>
 
-      <div className="flex-grow mb-6">
+      <div className="flex-1 mb-4 min-h-0">
         <textarea
           value={answer}
           onChange={onAnswerChange}
