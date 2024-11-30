@@ -1,18 +1,49 @@
-import React from 'react';
-import SpeechRecognition from 'react-speech-recognition';
+import React, { useEffect } from 'react';
+import 'regenerator-runtime/runtime';
+import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 
-interface SpeechRecognitionProviderProps {
-  children: React.ReactNode;
+interface SpeechInputProps {
+  onSpeechResult: (text: string) => void;
+  isListening: boolean;
+  setIsListening: (isListening: boolean) => void;
 }
 
-export const SpeechRecognitionProvider: React.FC<SpeechRecognitionProviderProps> = ({ children }) => {
-  if (!SpeechRecognition.browserSupportsSpeechRecognition()) {
-    return (
-      <div className="text-center p-4 bg-yellow-50 text-yellow-800 rounded-md">
-        Your browser doesn't support speech recognition. Please use a modern browser like Chrome.
-      </div>
-    );
+export const SpeechInput: React.FC<SpeechInputProps> = ({
+  onSpeechResult,
+  isListening,
+  setIsListening,
+}) => {
+  const {
+    transcript,
+    resetTranscript,
+    browserSupportsSpeechRecognition,
+  } = useSpeechRecognition();
+
+  useEffect(() => {
+    if (transcript) {
+      onSpeechResult(transcript);
+    }
+  }, [transcript, onSpeechResult]);
+
+  useEffect(() => {
+    if (isListening) {
+      resetTranscript();
+      SpeechRecognition.startListening({ continuous: true });
+    } else {
+      SpeechRecognition.stopListening();
+    }
+
+    return () => {
+      if (isListening) {
+        SpeechRecognition.stopListening();
+      }
+    };
+  }, [isListening, resetTranscript]);
+
+  if (!browserSupportsSpeechRecognition) {
+    return null;
   }
 
-  return <>{children}</>;
+  return null;
 };
+export default SpeechInput;

@@ -46,7 +46,7 @@ export const ApiService = {
     try {
       await api.post('/submit-answer', {
         answer: answer.trim(),
-        questionIndex: questionIndex
+        questionIndex: questionIndex,
       });
     } catch (error: any) {
       if (error.response?.data?.error) {

@@ -3,6 +3,7 @@ import { Question } from '../types';
 import { ApiService } from '../services/api';
 import { ConversationSection } from './ConversationSection';
 import { VideoSection } from './VideoSection';
+import { SpeechInput } from './SpeechInput';
 
 interface InterviewProps {
   questions: Question[];
@@ -59,10 +60,11 @@ export const Interview: React.FC<InterviewProps> = ({ questions, onComplete }) =
       } else {
         setCurrentQuestion(prev => prev + 1);
         setTimeExpired(false);
+        setIsListening(false);
       }
     } catch (error: any) {
       console.error('Error submitting answer:', error);
-      setError(error.response?.data?.error || "Failed to submit your answer. Please try again.");
+      setError(error.message || "Failed to submit your answer. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -75,35 +77,30 @@ export const Interview: React.FC<InterviewProps> = ({ questions, onComplete }) =
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-900 flex flex-col">
-      <div className="flex-1 flex">
-        <div className="grid grid-cols-2 w-full">
-          {/* Left side - Conversation Section */}
-          <div className="h-screen p-6 border-r border-gray-800">
-            <div className="h-full">
-              <ConversationSection
-                currentQuestion={currentQuestion}
-                questions={questions}
-                answer={answers[currentQuestion] || ''}
-                isListening={isListening}
-                timeExpired={timeExpired}
-                onAnswerChange={handleTextChange}
-                onSubmit={handleSubmitAnswer}
-                onTimeUp={handleTimeUp}
-                isSubmitting={isSubmitting}
-              />
-            </div>
-          </div>
+    <div className="min-h-screen bg-gray-900">
+      <div className="max-w-[1920px] mx-auto h-screen grid grid-cols-2">
+        {/* Left side - Conversation Section */}
+        <div className="h-full p-6 border-r border-gray-800">
+          <ConversationSection
+            currentQuestion={currentQuestion}
+            questions={questions}
+            answer={answers[currentQuestion] || ''}
+            isListening={isListening}
+            timeExpired={timeExpired}
+            onAnswerChange={handleTextChange}
+            onSubmit={handleSubmitAnswer}
+            onTimeUp={handleTimeUp}
+            isSubmitting={isSubmitting}
+          />
+        </div>
 
-          {/* Right side - Video Section */}
-          <div className="h-screen p-6">
-            <div className="h-full">
-              <VideoSection
-                isListening={isListening}
-                setIsListening={setIsListening}
-              />
-            </div>
-          </div>
+        {/* Right side - Video Section */}
+        <div className="h-full p-6">
+          <VideoSection
+            isListening={isListening}
+            setIsListening={setIsListening}
+            onSpeechResult={handleSpeechResult}
+          />
         </div>
       </div>
       
@@ -112,6 +109,12 @@ export const Interview: React.FC<InterviewProps> = ({ questions, onComplete }) =
           {error}
         </div>
       )}
+
+      <SpeechInput
+        isListening={isListening}
+        setIsListening={setIsListening}
+        onSpeechResult={handleSpeechResult}
+      />
     </div>
   );
 };

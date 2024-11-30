@@ -5,9 +5,14 @@ import { Video, VideoOff, Mic, MicOff } from 'lucide-react';
 interface VideoSectionProps {
   isListening: boolean;
   setIsListening: (isListening: boolean) => void;
+  onSpeechResult: (text: string) => void;
 }
 
-export const VideoSection: React.FC<VideoSectionProps> = ({ isListening, setIsListening }) => {
+export const VideoSection: React.FC<VideoSectionProps> = ({ 
+  isListening, 
+  setIsListening,
+  onSpeechResult 
+}) => {
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
   const webcamRef = useRef<Webcam>(null);
 

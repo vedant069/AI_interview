@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
-import { SpeechRecognitionProvider } from './components/SpeechRecognitionProvider';
+import SpeechRecognitionProvider from '/src/components/SpeechRecognitionProvider.tsx';
 import { Home } from './components/Home';
 import { Login } from './components/Login';
 import { InterviewDashboard } from './components/InterviewDashboard';
