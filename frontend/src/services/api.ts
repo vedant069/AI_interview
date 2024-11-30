@@ -47,6 +47,9 @@ export const ApiService = {
       await api.post('/submit-answer', {
         answer: answer.trim(),
         questionIndex: questionIndex,
+      }).catch((error) => {
+        console.error("Payload sent:", { answer: answer.trim(), questionIndex });
+        throw error;
       });
     } catch (error: any) {
       if (error.response?.data?.error) {

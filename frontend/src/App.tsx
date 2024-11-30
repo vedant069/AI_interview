@@ -1,7 +1,13 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { 
+  createBrowserRouter, 
+  RouterProvider, 
+  Navigate,
+  createRoutesFromElements,
+  Route
+} from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
-import SpeechRecognitionProvider from '/src/components/SpeechRecognitionProvider.tsx';
+import SpeechRecognitionProvider from './components/SpeechRecognitionProvider';
 import { Home } from './components/Home';
 import { Login } from './components/Login';
 import { InterviewDashboard } from './components/InterviewDashboard';
@@ -12,26 +18,37 @@ const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   return currentUser ? <>{children}</> : <Navigate to="/login" />;
 };
 
+// Create routes with future flags enabled
+const router = createBrowserRouter(
+  createRoutesFromElements(
+    <Route>
+      <Route path="/" element={<Home />} />
+      <Route path="/login" element={<Login />} />
+      <Route 
+        path="/interview" 
+        element={
+          <PrivateRoute>
+            <InterviewDashboard />
+          </PrivateRoute>
+        } 
+      />
+    </Route>
+  ),
+  {
+    future: {
+      v7_startTransition: true,
+      v7_relativeSplatPath: true
+    }
+  }
+);
+
 function App() {
   return (
-    <Router>
-      <AuthProvider>
-        <SpeechRecognitionProvider>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/login" element={<Login />} />
-            <Route 
-              path="/interview" 
-              element={
-                <PrivateRoute>
-                  <InterviewDashboard />
-                </PrivateRoute>
-              } 
-            />
-          </Routes>
-        </SpeechRecognitionProvider>
-      </AuthProvider>
-    </Router>
+    <AuthProvider>
+      <SpeechRecognitionProvider>
+        <RouterProvider router={router} />
+      </SpeechRecognitionProvider>
+    </AuthProvider>
   );
 }
 
