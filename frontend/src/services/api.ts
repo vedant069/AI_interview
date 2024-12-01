@@ -63,4 +63,27 @@ export const ApiService = {
     const response = await api.post('/get-feedback');
     return response.data;
   },
+
+  saveFeedback: async (
+    userId: string,
+    domain: string,
+    role: string,
+    feedback: FeedbackData,
+    questions: Question[],
+    answers: { question: string; answer: string }[]
+  ): Promise<void> => {
+    await api.post('/feedback', {
+      userId,
+      domain,
+      role,
+      feedback,
+      questions,
+      answers,
+    });
+  },
+
+  getFeedbackHistory: async (userId: string): Promise<any[]> => {
+    const response = await api.get(`/feedback/${userId}`);
+    return response.data;
+  },
 };

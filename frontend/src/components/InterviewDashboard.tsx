@@ -7,6 +7,7 @@ import { BrainCircuit } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { ApiService } from '../services/api';
+import { InterviewHistory } from './InterviewHistory';
 
 const GeometricShapes = () => (
   <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -14,8 +15,6 @@ const GeometricShapes = () => (
     <div className="absolute -bottom-20 -left-20 w-96 h-96 bg-teal-400/10 rounded-full blur-3xl" />
     <div className="absolute top-1/3 right-1/4 w-32 h-32 border border-yellow-400/30 rounded-full" />
     <div className="absolute bottom-1/4 left-1/3 w-48 h-48 border border-teal-400/20 rotate-45" />
-    <div className="absolute top-20 left-20 w-24 h-24 bg-yellow-400/20" 
-      style={{ clipPath: 'polygon(50% 0%, 100% 100%, 0% 100%)' }} />
   </div>
 );
 
@@ -25,6 +24,8 @@ export const InterviewDashboard: React.FC = () => {
   const [roles, setRoles] = useState<string[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [feedback, setFeedback] = useState<FeedbackData | null>(null);
+  const [answers, setAnswers] = useState<{ question: string; answer: string }[]>([]);
+  const [feedbackHistory, setFeedbackHistory] = useState<any[]>([]);
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
   
@@ -39,16 +40,22 @@ export const InterviewDashboard: React.FC = () => {
   });
 
   useEffect(() => {
-    const fetchDomains = async () => {
-      try {
-        const response = await ApiService.getDomains();
-        setDomains(response);
-      } catch (error) {
-        console.error('Error fetching domains:', error);
+    const fetchData = async () => {
+      if (currentUser?.uid) {
+        try {
+          const [domainsData, historyData] = await Promise.all([
+            ApiService.getDomains(),
+            ApiService.getFeedbackHistory(currentUser.uid)
+          ]);
+          setDomains(domainsData);
+          setFeedbackHistory(historyData);
+        } catch (error) {
+          console.error('Error fetching data:', error);
+        }
       }
     };
-    fetchDomains();
-  }, []);
+    fetchData();
+  }, [currentUser]);
 
   useEffect(() => {
     const fetchRoles = async () => {
@@ -76,8 +83,32 @@ export const InterviewDashboard: React.FC = () => {
     }
   };
 
-  const handleInterviewComplete = (feedbackData: FeedbackData) => {
+  const handleInterviewComplete = async (
+    feedbackData: FeedbackData,
+    questions: Question[],
+    submittedAnswers: { question: string; answer: string }[]
+  ) => {
     setFeedback(feedbackData);
+    setAnswers(submittedAnswers);
+
+    if (currentUser?.uid) {
+      try {
+        await ApiService.saveFeedback(
+          currentUser.uid,
+          interviewState.domain,
+          interviewState.role,
+          feedbackData,
+          questions,
+          submittedAnswers
+        );
+        
+        const history = await ApiService.getFeedbackHistory(currentUser.uid);
+        setFeedbackHistory(history);
+      } catch (error) {
+        console.error('Error saving feedback:', error);
+      }
+    }
+
     setStep('feedback');
   };
 
@@ -93,6 +124,7 @@ export const InterviewDashboard: React.FC = () => {
     });
     setQuestions([]);
     setFeedback(null);
+    setAnswers([]);
     setStep('setup');
   };
 
@@ -140,15 +172,20 @@ export const InterviewDashboard: React.FC = () => {
             </div>
           </div>
 
-          <main className="mt-8">
+          <main className="py-8">
             {step === 'setup' && (
-              <InterviewSetup
-                state={interviewState}
-                onChange={updates => setInterviewState({ ...interviewState, ...updates })}
-                onSubmit={handleInterviewSetup}
-                domains={domains}
-                roles={roles}
-              />
+              <div className="space-y-8">
+                {feedbackHistory.length > 0 && (
+                  <InterviewHistory feedbackHistory={feedbackHistory} />
+                )}
+                <InterviewSetup
+                  state={interviewState}
+                  onChange={updates => setInterviewState({ ...interviewState, ...updates })}
+                  onSubmit={handleInterviewSetup}
+                  domains={domains}
+                  roles={roles}
+                />
+              </div>
             )}
 
             {step === 'interview' && questions.length > 0 && (
@@ -161,6 +198,8 @@ export const InterviewDashboard: React.FC = () => {
             {step === 'feedback' && feedback && (
               <Feedback
                 feedback={feedback}
+                questions={questions}
+                answers={answers}
                 onRestart={handleRestart}
               />
             )}

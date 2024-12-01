@@ -11,6 +11,7 @@ import traceback
 import json
 import numpy as np
 from dataclasses import dataclass
+from models.feedback import FeedbackModel
 
 # Configure logging
 def setup_logger():
@@ -51,13 +52,20 @@ app.secret_key = 'your_secret_key_here'  # Replace with a secure key in producti
 app.config['SESSION_TYPE'] = 'filesystem'
 Session(app)
 
-OLLAMA_URL = 'https://02b3-34-87-144-56.ngrok-free.app/'
+OLLAMA_URL = 'https://56ab-34-126-136-177.ngrok-free.app/'
 client = ollama.Client(host=OLLAMA_URL)
-
+feedback_model = FeedbackModel()
 # Configure CORS
 CORS(app, 
-     supports_credentials=True, 
-     resources={r"/api/*": {"origins": "http://localhost:5173"}})
+     supports_credentials=True,
+     resources={
+         r"/api/*": {
+             "origins": ["http://localhost:5173"],
+             "methods": ["GET", "POST", "OPTIONS"],
+             "allow_headers": ["Content-Type"],
+             "supports_credentials": True
+         }
+     })
 
 DOMAINS = ["Cloud Computing", "Data Science", "Web Development", "Cyber Security"]
 ROLES = {
@@ -73,14 +81,55 @@ def get_domains():
 @app.route('/api/roles/<domain>', methods=['GET'])
 def get_roles(domain):
     return jsonify(ROLES.get(domain, []))
+def generate_behavioral_questions():
+    questions = []
+    
+    # First behavioral question - Introduction
+    intro_system_prompt = """
+    You are a professional interviewer. Generate an introduction question that asks the candidate 
+    to introduce themselves and their background. Keep it professional and concise.
+    Only provide the question without any additional context or explanations.
+    """
+    intro_prompt = "Generate an introduction question for the interview."
+    
+    # Second behavioral question - Role motivation
+    motivation_system_prompt = """
+    You are a professional interviewer. Generate a question that asks about the candidate's 
+    motivation for applying to this role and what interests them about it.
+    Only provide the question without any additional context or explanations.
+    """
+    motivation_prompt = "Generate a question about role motivation."
+    
+    try:
+        # Generate introduction question
+        intro_response = client.generate(
+            model="llama3.2:3b",
+            prompt=intro_prompt,
+            system=intro_system_prompt,
+        )
+        questions.append({"question": intro_response['response'].strip()})
+        
+        # Generate motivation question
+        motivation_response = client.generate(
+            model="llama3.2:3b",
+            prompt=motivation_prompt,
+            system=motivation_system_prompt,
+        )
+        questions.append({"question": motivation_response['response'].strip()})
+        
+    except Exception as e:
+        print(f"Error generating behavioral questions: {str(e)}")
+        questions = [
+            {"question": "Could you please introduce yourself and tell us about your background?"},
+            {"question": "What interests you about this role and why did you apply for it?"}
+        ]
+    
+    return questions
 
 @app.route('/api/generate-questions', methods=['POST'])
 def generate_questions():
     try:
-        logger.info("Starting question generation process")
         data = request.json
-        logger.debug(f"Received request data: {json.dumps(data, indent=2)}")
-        
         is_custom_job = data.get('isCustomJob', False)
         job_description = data.get('jobDescription', '')
         domain = data.get('domain')
@@ -90,51 +139,52 @@ def generate_questions():
         resume_text = data.get('resumeText', '')
 
         if is_custom_job and not job_description:
-            logger.error("Job description missing for custom job")
             return jsonify({"error": "Job description is required for custom jobs"}), 400
         elif not is_custom_job and not all([domain, role]):
-            logger.error("Domain or role missing for quick setup")
             return jsonify({"error": "Domain and role are required for quick setup"}), 400
         
         if not experience:
-            logger.error("Experience level missing")
             return jsonify({"error": "Experience level is required"}), 400
 
-        # Initialize session data
-        if 'interview_data' not in session:
-            session['interview_data'] = {
-                'experience': experience,
-                'questions': [],
-                'answers': [],
-                'current_question': 0
-            }
-        
-        questions = []
+        session['experience'] = experience
+        session['candidate_answers'] = []
+        session['current_question'] = 0
+
+        # Generate behavioral questions first
+        questions = generate_behavioral_questions()
+
+        # Generate technical questions
         if resume_text:
-            logger.info("Generating questions based on resume")
-            questions = generate_interview_questions(
+            technical_questions = generate_interview_questions(
                 resume_text=resume_text,
                 job_description=job_description if is_custom_job else f"Role: {role} in {domain}",
                 experience_level=experience,
-                num_questions=question_count
+                num_questions=question_count - 2  # Subtract 2 for behavioral questions
             )
+            questions.extend(technical_questions)
         else:
-            for i in range(question_count):
+            # Generate remaining technical questions
+            for i in range(question_count - 2):
                 if is_custom_job:
-                    system_prompt = """
+                    system_prompt = f"""
                     You are a professional technical interviewer.
-                    Based on the job description, generate a relevant technical interview question.
-                    Only provide the question without additional context or explanations.
+                    Based on the following job description, generate a relevant technical interview question.
+                    Only provide the question without any additional context or explanations.
                     """
-                    question_prompt = f"Generate the next technical interview question based on the job requirements."
+                    
+                    question_prompt = f"Generate a technical interview question based on the job requirements."
                 else:
                     system_prompt = f"""
                     You are a professional interviewer with expertise in {domain}. 
-                    Generate one structured question suitable for a {experience}-level {role} candidate.
-                    Ask a simple question that can be answered in 2-3 lines max.
-                    Only provide the question without any additional context.
+                    Your job is to conduct an interview for the role of {role}. 
+                    Generate one structured and insightful technical question suitable for a {experience}-level candidate. 
+                    Ask simple question which can be answered in 2-3 lines max.
+                    Do not include any assessment details or explanations; only provide the question.
+                    There is only one candidate you are interviewing, ask a new question.
+                    Don't give the answer.
                     """
-                    question_prompt = f"Ask the next {experience}-level interview question for a {role} in {domain}."
+                    
+                    question_prompt = f"Ask a technical {experience}-level interview question for a {role} in {domain}."
                 
                 try:
                     response = client.generate(
@@ -144,21 +194,24 @@ def generate_questions():
                     )
                     
                     question = {
-                        "id": i,
                         "question": response['response'].strip(),
                     }
+                    session[f'question_{i+2}'] = question  # Start from index 2 for technical questions
                     questions.append(question)
                     
                 except Exception as e:
-                    logger.error(f"Error generating question {i}: {str(e)}")
+                    print(f"Error generating question {i}: {str(e)}")
                     return jsonify({"error": f"Error generating questions: {str(e)}"}), 500
 
-        # Store questions in session
-        session['interview_data']['questions'] = questions
-        session.modified = True
-        
-        logger.info(f"Successfully generated {len(questions)} questions")
+        # Store all questions in session
+        for i, question in enumerate(questions):
+            session[f'question_{i}'] = question
+
         return jsonify(questions)
+
+    except Exception as e:
+        print(f"Error in generate_questions: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
     except Exception as e:
         logger.error(f"Error in generate_questions: {str(e)}\n{traceback.format_exc()}")
@@ -182,104 +235,117 @@ def upload_resume():
     except Exception as e:
         print(f"Error in upload_resume: {str(e)}")
         return jsonify({"error": str(e)}), 500  
-@app.route('/api/submit-answer', methods=['POST'])
+@app.route('/api/submit-answer', methods=['POST', 'OPTIONS'])
 def submit_answer():
+    if request.method == 'OPTIONS':
+        response = jsonify({"success": True})
+        response.status_code = 200
+        return response
+
     try:
-        logger.info("Processing answer submission")
         data = request.json
         if not data:
-            logger.error("No data provided in request")
-            return jsonify({"error": "No data provided"}), 400
+            return jsonify({"error": "Request body must be JSON"}), 400
 
         answer = data.get('answer')
         question_index = data.get('questionIndex')
 
-        logger.debug(f"Received answer for question index {question_index}")
+        if not answer or not isinstance(answer, str):
+            return jsonify({"error": "Invalid or missing 'answer'"}), 400
 
-        if 'interview_data' not in session:
-            logger.error("No interview data found in session")
-            return jsonify({"error": "No interview session found"}), 400
+        if not isinstance(question_index, int):
+            return jsonify({"error": "Invalid or missing 'questionIndex'"}), 400
 
-        interview_data = session['interview_data']
-        questions = interview_data.get('questions', [])
+        question_key = f'question_{question_index}'
 
-        if not questions or question_index >= len(questions):
-            logger.error(f"Question index {question_index} not found in session questions")
-            return jsonify({"error": "Question not found"}), 400
+        # Log session data for debugging
+        # print(f"Session data: {session}")
+        # print(f"Looking for key: {question_key}")
 
-        # Store the answer
-        if 'answers' not in interview_data:
-            interview_data['answers'] = []
+        if question_key not in session:
+            return jsonify({"error": f"Question not found in session: {question_key}"}), 400
 
-        answer_data = {
-            'question': questions[question_index]['question'],
-            'answer': answer,
-            'question_index': question_index
-        }
-
-        interview_data['answers'].append(answer_data)
-        interview_data['current_question'] = question_index + 1
-        
-        session['interview_data'] = interview_data
+        candidate_answers = session.get('candidate_answers', [])
+        candidate_answers.append({
+            'question': session[question_key]['question'],
+            'answer': answer
+        })
+        session['candidate_answers'] = candidate_answers
         session.modified = True
 
-        logger.info(f"Successfully stored answer for question {question_index}")
         return jsonify({"success": True})
 
     except Exception as e:
-        logger.error(f"Error in submit_answer: {str(e)}\n{traceback.format_exc()}")
         return jsonify({"error": str(e)}), 500
+
 
 @app.route('/api/get-feedback', methods=['POST'])
 
 def get_feedback():
     try:
-        logger.info("Generating feedback for interview")
-        if 'interview_data' not in session:
-            logger.error("No interview data found in session")
-            return jsonify({"error": "No interview data found"}), 400
+        if 'candidate_answers' not in session:
+            return jsonify({"error": "No answers found in session"}), 400
 
-        interview_data = session['interview_data']
-        answers = interview_data.get('answers', [])
+        experience = session.get('experience')
+        candidate_answers = session.get('candidate_answers', [])
         
-        if not answers:
-            logger.error("No answers found in session")
-            return jsonify({"error": "No answers found"}), 400
-
-        # Calculate score and generate feedback
+        # Calculate base score from answer lengths and keyword presence
         total_score = 0
-        for answer_data in answers:
+        for answer_data in candidate_answers:
             answer = answer_data['answer'].lower()
             
+            # Basic scoring criteria
             word_count = len(answer.split())
             has_technical_terms = bool(re.search(r'\b(api|code|data|function|method|class|algorithm|database|framework|library|server|client|test|debug|deploy)\b', answer))
             has_explanation = bool(re.search(r'\b(because|therefore|hence|since|as|due to)\b', answer))
             
+            # Score calculation
             answer_score = min(100, (
-                (min(word_count, 50) / 50 * 40) +
-                (30 if has_technical_terms else 0) +
-                (30 if has_explanation else 0)
+                (min(word_count, 50) / 50 * 40) +  # Up to 40 points for length
+                (30 if has_technical_terms else 0) +  # 30 points for technical terms
+                (30 if has_explanation else 0)  # 30 points for explanation
             ))
             
             total_score += answer_score
 
-        final_score = int(total_score / len(answers))
+        # Average score across all answers
+        final_score = int(total_score / len(candidate_answers))
 
-        # Generate feedback based on score
-        feedback_data = generate_feedback(final_score)
-        logger.info(f"Generated feedback with score {final_score}")
-        
+        # Generate appropriate feedback based on score
+        if final_score >= 80:
+            strength = "Strong technical knowledge demonstrated"
+            areas_improvement = "Add more specific examples"
+            weakness = "Could provide more detailed explanations"
+        elif final_score >= 60:
+            strength = "Good basic understanding shown"
+            areas_improvement = "Technical depth, practical examples"
+            weakness = "Needs more technical specifics"
+        elif final_score >= 40:
+            strength = "Shows fundamental knowledge"
+            areas_improvement = "Technical terms, clarity, depth"
+            weakness = "Answers lack technical detail"
+        else:
+            strength = "Willing to attempt answers"
+            areas_improvement = "Technical knowledge, specificity"
+            weakness = "Insufficient technical depth"
+
+        feedback_data = {
+            "strength": strength,
+            "areasOfImprovement": areas_improvement,
+            "weakness": weakness,
+            "overallScore": str(final_score)
+        }
+
         return jsonify(feedback_data)
 
     except Exception as e:
-        logger.error(f"Error in get_feedback: {str(e)}\n{traceback.format_exc()}")
+        print(f"Error in get_feedback: {str(e)}")
         return jsonify({
             "strength": "Attempted to answer questions",
             "areasOfImprovement": "Technical depth, clarity",
             "weakness": "Needs more preparation",
             "overallScore": "50"
         }), 200
-
 def generate_feedback(score):
     if score >= 80:
         return {
@@ -309,7 +375,45 @@ def generate_feedback(score):
             "weakness": "Insufficient technical depth",
             "overallScore": str(score)
         }
+@app.route('/api/feedback', methods=['POST'])
+def save_feedback():
+    try:
+        data = request.json
+        user_id = data.get('userId')
+        
+        if not user_id:
+            return jsonify({"error": "User ID is required"}), 400
 
+        feedback_data = {
+            'domain': data.get('domain'),
+            'role': data.get('role'),
+            'feedback': {
+                'strength': data.get('feedback', {}).get('strength'),
+                'areasOfImprovement': data.get('feedback', {}).get('areasOfImprovement'),
+                'weakness': data.get('feedback', {}).get('weakness'),
+                'overallScore': data.get('feedback', {}).get('overallScore')
+            },
+            'questions': data.get('questions', []),
+            'answers': data.get('answers', [])
+        }
+
+        result = feedback_model.save_feedback(user_id, feedback_data)
+        
+        if result['success']:
+            return jsonify({"message": "Feedback saved successfully"}), 200
+        else:
+            return jsonify({"error": result['error']}), 500
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/feedback/<user_id>', methods=['GET'])
+def get_feedback_history(user_id):
+    try:
+        feedbacks = feedback_model.get_user_feedback(user_id)
+        return jsonify(feedbacks), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 if __name__ == '__main__':
     logger.info("Starting Flask application")
     app.run(debug=True)

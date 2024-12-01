@@ -7,7 +7,7 @@ import { SpeechInput } from './SpeechInput';
 
 interface InterviewProps {
   questions: Question[];
-  onComplete: (feedback: any) => void;
+  onComplete: (feedback: any, questions: Question[], answers: any[]) => void;
 }
 
 export const Interview: React.FC<InterviewProps> = ({ questions, onComplete }) => {
@@ -17,6 +17,7 @@ export const Interview: React.FC<InterviewProps> = ({ questions, onComplete }) =
   const [timeExpired, setTimeExpired] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submittedAnswers, setSubmittedAnswers] = useState<{ question: string; answer: string }[]>([]);
 
   const handleTimeUp = useCallback(() => {
     setTimeExpired(true);
@@ -40,40 +41,40 @@ export const Interview: React.FC<InterviewProps> = ({ questions, onComplete }) =
 
   const handleSubmitAnswer = async () => {
     const currentAnswer = answers[currentQuestion];
-  
-    // Validate the answer
+    
     if (typeof currentAnswer !== 'string' || !currentAnswer.trim()) {
       setError("Answer cannot be empty.");
       return;
     }
-  
-    // Prevent multiple submissions
+
     if (isSubmitting) return;
-  
+
     try {
-      setIsSubmitting(true);  // Disable submit button
-      setError(null);         // Clear previous errors
-  
-      // Submit the answer via the API
-      await ApiService.submitAnswer(currentAnswer, currentQuestion);
-  
-      // If all questions answered, fetch feedback
+      setIsSubmitting(true);
+      setError(null);
+      
+      await ApiService.submitAnswer(currentAnswer.trim(), currentQuestion);
+
+      // Store the submitted answer
+      const newSubmittedAnswer = {
+        question: questions[currentQuestion].question,
+        answer: currentAnswer.trim()
+      };
+      setSubmittedAnswers([...submittedAnswers, newSubmittedAnswer]);
+
       if (currentQuestion === questions.length - 1) {
         const feedback = await ApiService.getFeedback();
-        onComplete(feedback);
+        onComplete(feedback, questions, [...submittedAnswers, newSubmittedAnswer]);
       } else {
-        // Move to the next question
         setCurrentQuestion(prev => prev + 1);
         setTimeExpired(false);
         setIsListening(false);
       }
     } catch (error: any) {
       console.error('Error submitting answer:', error);
-  
-      // Handle known and unknown errors
       setError(error.message || "Failed to submit your answer. Please try again.");
     } finally {
-      setIsSubmitting(false);  // Re-enable submit button
+      setIsSubmitting(false);
     }
   };
 
@@ -112,7 +113,8 @@ export const Interview: React.FC<InterviewProps> = ({ questions, onComplete }) =
       </div>
       
       {error && (
-        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 px-6 py-3 bg-red-50 border border-red-200 rounded-lg text-red-700 shadow-lg">
+        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 px-6 py-3 
+          bg-red-50 border border-red-200 rounded-lg text-red-700 shadow-lg">
           {error}
         </div>
       )}
