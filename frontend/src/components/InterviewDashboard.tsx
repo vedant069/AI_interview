@@ -3,7 +3,7 @@ import { InterviewSetup } from './InterviewSetup';
 import { Interview } from './Interview';
 import { Feedback } from './Feedback';
 import { Question, InterviewState, FeedbackData } from '../types';
-import { BrainCircuit } from 'lucide-react';
+import { BrainCircuit, LogOut, User } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { ApiService } from '../services/api';
@@ -16,6 +16,48 @@ const GeometricShapes = () => (
     <div className="absolute top-1/3 right-1/4 w-32 h-32 border border-yellow-400/30 rounded-full" />
     <div className="absolute bottom-1/4 left-1/3 w-48 h-48 border border-teal-400/20 rotate-45" />
   </div>
+);
+
+const Header: React.FC<{ userName: string; onLogout: () => void }> = ({ userName, onLogout }) => (
+  <header className="fixed top-0 left-0 right-0 bg-white/80 backdrop-blur-md z-50 border-b border-teal-100">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="flex justify-between items-center h-20">
+        <div className="flex items-center space-x-8">
+          <div className="flex items-center">
+            <div className="relative">
+              <div className="w-12 h-12 bg-yellow-400 rounded-full flex items-center justify-center">
+                <BrainCircuit className="h-6 w-6 text-teal-900" />
+              </div>
+              <div className="absolute -top-2 -right-2 w-4 h-4 border-2 border-teal-500/30 rounded-full" />
+              <div className="absolute -bottom-2 -left-2 w-4 h-4 border-2 border-yellow-400/30 rotate-45" />
+            </div>
+            <h1 className="ml-3 text-2xl font-bold font-mono text-teal-900">
+              Interview AI
+            </h1>
+          </div>
+        </div>
+        
+        <div className="flex items-center space-x-6">
+          <div className="flex items-center space-x-3 px-4 py-2 bg-teal-50 rounded-full">
+            <User className="h-5 w-5 text-teal-700" />
+            <span className="text-teal-700 font-medium">
+              {userName.split('@')[0]}
+            </span>
+          </div>
+          <button
+            onClick={onLogout}
+            className="flex items-center space-x-2 px-6 py-2 text-sm font-medium bg-yellow-400 text-teal-900 rounded-full 
+              hover:bg-yellow-300 transition-all duration-200 transform hover:scale-[1.02]
+              focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-400 focus:ring-offset-white
+              shadow-lg hover:shadow-yellow-200"
+          >
+            <LogOut className="h-4 w-4" />
+            <span>Logout</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
 );
 
 export const InterviewDashboard: React.FC = () => {
@@ -140,38 +182,13 @@ export const InterviewDashboard: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-white via-yellow-50 to-teal-50 relative overflow-hidden">
       <GeometricShapes />
+      <Header 
+        userName={currentUser?.email || ''} 
+        onLogout={handleLogout}
+      />
       
-      <div className="relative z-10">
+      <div className="relative z-10 pt-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-20">
-            <div className="flex items-center">
-              <div className="relative">
-                <div className="w-12 h-12 bg-yellow-400 rounded-full flex items-center justify-center">
-                  <BrainCircuit className="h-6 w-6 text-teal-900" />
-                </div>
-                <div className="absolute -top-2 -right-2 w-4 h-4 border-2 border-teal-500/30 rounded-full" />
-                <div className="absolute -bottom-2 -left-2 w-4 h-4 border-2 border-yellow-400/30 rotate-45" />
-              </div>
-              <h1 className="ml-3 text-2xl font-bold font-mono text-teal-900">
-                Interview Preparation Assistant
-              </h1>
-            </div>
-            <div className="flex items-center">
-              <span className="text-teal-700 mr-4">
-                {currentUser?.email}
-              </span>
-              <button
-                onClick={handleLogout}
-                className="px-6 py-2 text-sm font-medium bg-yellow-400 text-teal-900 rounded-full 
-                  hover:bg-yellow-300 transition-all duration-200 transform hover:scale-[1.02]
-                  focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-400 focus:ring-offset-white
-                  shadow-lg hover:shadow-yellow-200"
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-
           <main className="py-8">
             {step === 'setup' && (
               <div className="space-y-8">

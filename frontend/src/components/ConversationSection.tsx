@@ -26,40 +26,36 @@ export const ConversationSection: React.FC<ConversationSectionProps> = ({
   onTimeUp,
 }) => {
   return (
-    <div className="flex flex-col h-full bg-gray-800 rounded-xl p-6 shadow-lg">
+    <div className="flex flex-col h-full bg-white rounded-xl p-6 shadow-lg">
       <div className="flex justify-between items-center mb-4">
-        <span className="text-sm font-medium text-gray-300">
+        <span className="text-sm font-medium text-gray-600">
           Question {currentQuestion + 1} of {questions.length}
         </span>
-        <Timer duration={150} onTimeUp={onTimeUp} />
+        <Timer duration={1800} onTimeUp={onTimeUp} />
       </div>
-
       <div className="mb-4">
-        <h3 className="text-lg font-semibold text-white">
+        <h3 className="text-lg font-semibold text-gray-900">
           {questions[currentQuestion].question}
         </h3>
       </div>
-
       <div className="flex-1 mb-4 min-h-0">
         <textarea
           value={answer}
           onChange={onAnswerChange}
           disabled={timeExpired || isListening || isSubmitting}
-          className="w-full h-full p-4 bg-gray-700 border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none text-white placeholder-gray-400"
+          className="w-full h-full p-4 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none text-gray-900 placeholder-gray-500"
           placeholder={isListening ? "Listening... Speak your answer" : "Type your answer here..."}
         />
       </div>
-
       {timeExpired && (
-        <p className="text-yellow-400 text-sm mb-4">
+        <p className="text-amber-600 text-sm mb-4">
           Time's up! Your answer has been submitted.
         </p>
       )}
-
       <button
         onClick={onSubmit}
         disabled={!answer.trim() || timeExpired || isSubmitting}
-        className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full bg-blue-500 text-white py-3 px-6 rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {isSubmitting ? (
           <span className="flex items-center justify-center">

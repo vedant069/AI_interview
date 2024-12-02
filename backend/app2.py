@@ -16,7 +16,7 @@ app.secret_key = 'your_secret_key_here'  # Replace with a secure key in producti
 app.config['SESSION_TYPE'] = 'filesystem'
 Session(app)
 
-OLLAMA_URL = 'https://56ab-34-126-136-177.ngrok-free.app/'
+OLLAMA_URL = 'https://77a1-35-247-154-147.ngrok-free.app/'
 client = ollama.Client(host=OLLAMA_URL)
 feedback_model = FeedbackModel()
 # Configure CORS

@@ -55,7 +55,6 @@ export const Interview: React.FC<InterviewProps> = ({ questions, onComplete }) =
       
       await ApiService.submitAnswer(currentAnswer.trim(), currentQuestion);
 
-      // Store the submitted answer
       const newSubmittedAnswer = {
         question: questions[currentQuestion].question,
         answer: currentAnswer.trim()
@@ -85,10 +84,10 @@ export const Interview: React.FC<InterviewProps> = ({ questions, onComplete }) =
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-900">
+    <div className="min-h-screen bg-gradient-to-br from-green-50 to-yellow-50">
       <div className="max-w-[1920px] mx-auto h-screen grid grid-cols-2">
         {/* Left side - Conversation Section */}
-        <div className="h-full p-6 border-r border-gray-800">
+        <div className="h-full p-6 border-r border-green-100 bg-white shadow-sm">
           <ConversationSection
             currentQuestion={currentQuestion}
             questions={questions}
@@ -103,7 +102,7 @@ export const Interview: React.FC<InterviewProps> = ({ questions, onComplete }) =
         </div>
 
         {/* Right side - Video Section */}
-        <div className="h-full p-6">
+        <div className="h-full p-6 bg-green-50/50">
           <VideoSection
             isListening={isListening}
             setIsListening={setIsListening}
