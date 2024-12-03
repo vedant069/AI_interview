@@ -16,7 +16,7 @@ app.secret_key = 'your_secret_key_here'  # Replace with a secure key in producti
 app.config['SESSION_TYPE'] = 'filesystem'
 Session(app)
 
-OLLAMA_URL = 'https://77a1-35-247-154-147.ngrok-free.app/'
+OLLAMA_URL = 'https://34ac-34-23-185-92.ngrok-free.app/'
 client = ollama.Client(host=OLLAMA_URL)
 feedback_model = FeedbackModel()
 # Configure CORS
@@ -349,6 +349,43 @@ def get_feedback_history(user_id):
         return jsonify(feedbacks), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+@app.route('/api/ideal-answer', methods=['POST'])
+def get_ideal_answer():
+    try:
+        data = request.json
+        question = data.get('question')
+        user_answer = data.get('userAnswer')
+        
+        if not question or not user_answer:
+            return jsonify({"error": "Question and user answer are required"}), 400
 
+        system_prompt = """
+        You are an expert interviewer and mentor. Analyze the candidate's answer to the interview question
+        and provide constructive feedback. Your response should have two parts:
+
+        1. Analysis: Evaluate what the candidate did well and what could be improved. Be specific but constructive.
+        2. Ideal Answer: Provide a model answer that demonstrates the key points that should be covered.
+
+        Keep your response professional, clear, and helpful. Format your response with clear sections.
+        """
+
+        prompt = f"""
+        Question: {question}
+        Candidate's Answer: {user_answer}
+
+        Please provide an analysis of the answer and an ideal response.
+        """
+
+        response = client.generate(
+            model="llama3.2:3b",
+            prompt=prompt,
+            system=system_prompt,
+        )
+
+        return jsonify({"response": response['response'].strip()})
+
+    except Exception as e:
+        print(f"Error generating ideal answer: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 if __name__ == '__main__':
     app.run(debug=True)

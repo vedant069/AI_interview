@@ -6,7 +6,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 import PyPDF2
 import os
-OLLAMA_URL='https://77a1-35-247-154-147.ngrok-free.app/'
+OLLAMA_URL='https://34ac-34-23-185-92.ngrok-free.app/'
 # Initialize clients and models
 client = ollama.Client(host=OLLAMA_URL)
 embeddingModel = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')

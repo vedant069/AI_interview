@@ -47,9 +47,6 @@ export const ApiService = {
       await api.post('/submit-answer', {
         answer: answer.trim(),
         questionIndex: questionIndex,
-      }).catch((error) => {
-        console.error("Payload sent:", { answer: answer.trim(), questionIndex });
-        throw error;
       });
     } catch (error: any) {
       if (error.response?.data?.error) {
@@ -62,6 +59,14 @@ export const ApiService = {
   getFeedback: async (): Promise<FeedbackData> => {
     const response = await api.post('/get-feedback');
     return response.data;
+  },
+
+  getIdealAnswer: async (question: string, userAnswer: string): Promise<string> => {
+    const response = await api.post('/ideal-answer', {
+      question,
+      userAnswer
+    });
+    return response.data.response;
   },
 
   saveFeedback: async (
