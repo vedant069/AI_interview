@@ -16,7 +16,7 @@ app.secret_key = 'your_secret_key_here'  # Replace with a secure key in producti
 app.config['SESSION_TYPE'] = 'filesystem'
 Session(app)
 
-OLLAMA_URL = 'https://34ac-34-23-185-92.ngrok-free.app/'
+OLLAMA_URL = 'https://895e-34-16-166-53.ngrok-free.app/'
 client = ollama.Client(host=OLLAMA_URL)
 feedback_model = FeedbackModel()
 # Configure CORS
@@ -253,8 +253,8 @@ def get_feedback():
             
             # Basic scoring criteria
             word_count = len(answer.split())
-            has_technical_terms = bool(re.search(r'\b(api|code|data|function|method|class|algorithm|database|framework|library|server|client|test|debug|deploy)\b', answer))
-            has_explanation = bool(re.search(r'\b(because|therefore|hence|since|as|due to)\b', answer))
+            has_technical_terms = bool(re.search(r'\b(api|code|data|function|method|class|algorithm|database|framework|library|server|client|test|debug|deploy|performance|optimization|scalability|security|encryption|protocol|thread|process|memory|storage|cloud|container|virtualization|network|frontend|backend|fullstack|devops|ci/cd|integration|authentication|authorization|middleware|cache|proxy|dns|http|https|ssl|tls|rest|soap|graphql|json|xml|ajax|mvc|orm|nosql|sql|crud|gui|cli)\b', answer.lower()))
+            has_explanation = bool(re.search(r'\b(because|therefore|hence|since|as|due to|thus|resulting in|consequently|so that|which means|thereby|accordingly|for this reason|in order to|on account of)\b', answer.lower()))
             
             # Score calculation
             answer_score = min(100, (
