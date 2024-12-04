@@ -26,7 +26,7 @@ class FeedbackModel:
             ).sort('created_at', -1))
 
             # If more than 3 records exist, delete the oldest ones
-            if len(user_feedbacks) > 3:
+            if len(user_feedbacks) > 5:
                 old_feedback_ids = [f['_id'] for f in user_feedbacks[3:]]
                 self.collection.delete_many({'_id': {'$in': old_feedback_ids}})
 

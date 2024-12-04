@@ -3,7 +3,7 @@ import { InterviewSetup } from './InterviewSetup';
 import { Interview } from './Interview';
 import { Feedback } from './Feedback';
 import { Question, InterviewState, FeedbackData } from '../types';
-import { BrainCircuit, LogOut, User } from 'lucide-react';
+import { BrainCircuit, LogOut, User, History, PlusCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { ApiService } from '../services/api';
@@ -60,7 +60,34 @@ const Header: React.FC<{ userName: string; onLogout: () => void }> = ({ userName
   </header>
 );
 
+const Navigation: React.FC<{ view: string; onViewChange: (view: string) => void }> = ({ view, onViewChange }) => (
+  <div className="flex justify-center space-x-4 mb-8">
+    <button
+      onClick={() => onViewChange('new')}
+      className={`flex items-center space-x-2 px-6 py-3 rounded-full transition-all duration-200 ${
+        view === 'new'
+          ? 'bg-yellow-400 text-teal-900 shadow-lg hover:bg-yellow-300'
+          : 'bg-white text-teal-600 hover:bg-yellow-50'
+      }`}
+    >
+      <PlusCircle className="h-5 w-5" />
+      <span className="font-medium">New Interview</span>
+    </button>
+    <button
+      onClick={() => onViewChange('history')}
+      className={`flex items-center space-x-2 px-6 py-3 rounded-full transition-all duration-200 ${
+        view === 'history'
+          ? 'bg-yellow-400 text-teal-900 shadow-lg hover:bg-yellow-300'
+          : 'bg-white text-teal-600 hover:bg-yellow-50'
+      }`}
+    >
+      <History className="h-5 w-5" />
+      <span className="font-medium">View History</span>
+    </button>
+  </div>
+);
 export const InterviewDashboard: React.FC = () => {
+  const [view, setView] = useState<string>('new');
   const [step, setStep] = useState<'setup' | 'interview' | 'feedback'>('setup');
   const [domains, setDomains] = useState<string[]>([]);
   const [roles, setRoles] = useState<string[]>([]);
@@ -78,7 +105,7 @@ export const InterviewDashboard: React.FC = () => {
     isCustomJob: false,
     jobDescription: '',
     questionCount: 5,
-    resumeText: '',
+    resumeText: ''
   });
 
   useEffect(() => {
@@ -162,12 +189,13 @@ export const InterviewDashboard: React.FC = () => {
       isCustomJob: false,
       jobDescription: '',
       questionCount: 5,
-      resumeText: '',
+      resumeText: ''
     });
     setQuestions([]);
     setFeedback(null);
     setAnswers([]);
     setStep('setup');
+    setView('new');
   };
 
   const handleLogout = async () => {
@@ -176,6 +204,44 @@ export const InterviewDashboard: React.FC = () => {
       navigate('/');
     } catch (error) {
       console.error('Error logging out:', error);
+    }
+  };
+
+  const renderContent = () => {
+    if (view === 'history') {
+      return <InterviewHistory feedbackHistory={feedbackHistory} />;
+    }
+
+    if (step === 'setup') {
+      return (
+        <InterviewSetup
+          state={interviewState}
+          onChange={updates => setInterviewState({ ...interviewState, ...updates })}
+          onSubmit={handleInterviewSetup}
+          domains={domains}
+          roles={roles}
+        />
+      );
+    }
+
+    if (step === 'interview' && questions.length > 0) {
+      return (
+        <Interview
+          questions={questions}
+          onComplete={handleInterviewComplete}
+        />
+      );
+    }
+
+    if (step === 'feedback' && feedback) {
+      return (
+        <Feedback
+          feedback={feedback}
+          questions={questions}
+          answers={answers}
+          onRestart={handleRestart}
+        />
+      );
     }
   };
 
@@ -190,36 +256,8 @@ export const InterviewDashboard: React.FC = () => {
       <div className="relative z-10 pt-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <main className="py-8">
-            {step === 'setup' && (
-              <div className="space-y-8">
-                {feedbackHistory.length > 0 && (
-                  <InterviewHistory feedbackHistory={feedbackHistory} />
-                )}
-                <InterviewSetup
-                  state={interviewState}
-                  onChange={updates => setInterviewState({ ...interviewState, ...updates })}
-                  onSubmit={handleInterviewSetup}
-                  domains={domains}
-                  roles={roles}
-                />
-              </div>
-            )}
-
-            {step === 'interview' && questions.length > 0 && (
-              <Interview
-                questions={questions}
-                onComplete={handleInterviewComplete}
-              />
-            )}
-
-            {step === 'feedback' && feedback && (
-              <Feedback
-                feedback={feedback}
-                questions={questions}
-                answers={answers}
-                onRestart={handleRestart}
-              />
-            )}
+            <Navigation view={view} onViewChange={setView} />
+            {renderContent()}
           </main>
         </div>
       </div>

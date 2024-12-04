@@ -3,11 +3,14 @@ export interface InterviewState {
   role: string;
   experience: string;
   resumeText?: string;
+  isCustomJob: boolean;
+  jobDescription: string;
+  questionCount: number;
 }
 
 export interface Question {
   id: number;
-  text: string;
+  question: string;  // Changed from text to question to match usage
   type: 'technical' | 'behavioral';
   difficulty: 'easy' | 'medium' | 'hard';
   answer?: string;
