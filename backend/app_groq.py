@@ -1,8 +1,8 @@
 from flask import Flask, request, jsonify, session
 from flask_cors import CORS
-import ollama
 from flask_session import Session
-from rag import generate_interview_questions, save_resume
+from groq import Groq
+from rag_groq import generate_interview_questions, save_resume
 import re
 import os
 import traceback
@@ -10,16 +10,19 @@ import json
 import numpy as np
 from dataclasses import dataclass
 from models.feedback import FeedbackModel
-# from flask import jsonify, request
 from models.user import UserModel
+
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'  # Replace with a secure key in production
 app.config['SESSION_TYPE'] = 'filesystem'
 Session(app)
 
-OLLAMA_URL = 'https://48f9-35-198-196-18.ngrok-free.app/'
-client = ollama.Client(host=OLLAMA_URL)
+# Initialize Groq client with API key
+os.environ["GROQ_API_KEY"] = "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"
+client = Groq()
+
 feedback_model = FeedbackModel()
+
 # Configure CORS
 CORS(app, 
      supports_credentials=True,
@@ -39,145 +42,25 @@ ROLES = {
     "Web Development": ["Frontend Developer", "Backend Developer", "Full Stack Developer"],
     "Cyber Security": ["Security Analyst", "Penetration Tester", "Security Consultant"]
 }
-@app.route('/api/domains', methods=['GET'])
-def get_domains():
-    return jsonify(DOMAINS)
 
-@app.route('/api/roles/<domain>', methods=['GET'])
-def get_roles(domain):
-    return jsonify(ROLES.get(domain, []))
-
-def generate_behavioral_questions():
-    questions = []
-    
-    # First behavioral question - Introduction
-    intro_system_prompt = """
-    You are a professional interviewer. Generate an introduction question that asks the candidate 
-    to introduce themselves and their background. Keep it professional and concise.
-    Only provide the question without any additional context or explanations.
-    """
-    intro_prompt = "Generate an introduction question for the interview."
-    
-    # Second behavioral question - Role motivation
-    motivation_system_prompt = """
-    You are a professional interviewer. Generate a question that asks about the candidate's 
-    motivation for applying to this role and what interests them about it.
-    Only provide the question without any additional context or explanations.
-    """
-    motivation_prompt = "Generate a question about role motivation."
-    
+def generate_groq_response(system_prompt, user_prompt):
     try:
-        # Generate introduction question
-        intro_response = client.generate(
-            model="llama3.2:3b",
-            prompt=intro_prompt,
-            system=intro_system_prompt,
+        completion = client.chat.completions.create(
+            model="llama-3.2-3b-preview",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=1,
+            max_tokens=1024,
+            top_p=1,
+            stream=False,
+            stop=None
         )
-        questions.append({"question": intro_response['response'].strip()})
-        
-        # Generate motivation question
-        motivation_response = client.generate(
-            model="llama3.2:3b",
-            prompt=motivation_prompt,
-            system=motivation_system_prompt,
-        )
-        questions.append({"question": motivation_response['response'].strip()})
-        
+        return completion.choices[0].message.content.strip()
     except Exception as e:
-        print(f"Error generating behavioral questions: {str(e)}")
-        questions = [
-            {"question": "Could you please introduce yourself and tell us about your background?"},
-            {"question": "What interests you about this role and why did you apply for it?"}
-        ]
-    
-    return questions
-
-@app.route('/api/generate-questions', methods=['POST'])
-def generate_questions():
-    try:
-        data = request.json
-        is_custom_job = data.get('isCustomJob', False)
-        job_description = data.get('jobDescription', '')
-        domain = data.get('domain')
-        role = data.get('role')
-        experience = data.get('experience')
-        question_count = data.get('questionCount', 1)
-        resume_text = data.get('resumeText', '')
-
-        if is_custom_job and not job_description:
-            return jsonify({"error": "Job description is required for custom jobs"}), 400
-        elif not is_custom_job and not all([domain, role]):
-            return jsonify({"error": "Domain and role are required for quick setup"}), 400
-        
-        if not experience:
-            return jsonify({"error": "Experience level is required"}), 400
-
-        session['experience'] = experience
-        session['candidate_answers'] = []
-        session['current_question'] = 0
-
-        # Generate behavioral questions first
-        questions = generate_behavioral_questions()
-
-        # Generate technical questions
-        if resume_text:
-            technical_questions = generate_interview_questions(
-                resume_text=resume_text,
-                job_description=job_description if is_custom_job else f"Role: {role} in {domain}",
-                experience_level=experience,
-                num_questions=question_count - 2  # Subtract 2 for behavioral questions
-            )
-            questions.extend(technical_questions)
-        else:
-            # Generate remaining technical questions
-            for i in range(question_count - 2):
-                if is_custom_job:
-                    system_prompt = f"""
-                    You are a professional technical interviewer.
-                    Based on the following job description, generate a relevant technical interview question.
-                    Only provide the question without any additional context or explanations.
-                    """
-                    
-                    question_prompt = f"Generate a technical interview question based on the job requirements."
-                else:
-                    system_prompt = f"""
-                    You are a professional interviewer with expertise in {domain}. 
-                    Your job is to conduct an interview for the role of {role}. 
-                    Generate one structured and insightful technical question suitable for a {experience}-level candidate. 
-                    Ask simple question which can be answered in 2-3 lines max.
-                    Do not include any assessment details or explanations; only provide the question.
-                    There is only one candidate you are interviewing, ask a new question.
-                    Don't give the answer.
-                    """
-                    
-                    question_prompt = f"Ask a technical {experience}-level interview question for a {role} in {domain}."
-                
-                try:
-                    response = client.generate(
-                        model="llama3.2:3b",
-                        prompt=question_prompt,
-                        system=system_prompt,
-                    )
-                    
-                    question = {
-                        "question": response['response'].strip(),
-                    }
-                    session[f'question_{i+2}'] = question  # Start from index 2 for technical questions
-                    questions.append(question)
-                    
-                except Exception as e:
-                    print(f"Error generating question {i}: {str(e)}")
-                    return jsonify({"error": f"Error generating questions: {str(e)}"}), 500
-
-        # Store all questions in session
-        for i, question in enumerate(questions):
-            session[f'question_{i}'] = question
-
-        return jsonify(questions)
-
-    except Exception as e:
-        print(f"Error in generate_questions: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        print(f"Error in generate_groq_response: {str(e)}")
+        raise
 
 @app.route('/api/upload-resume', methods=['POST'])
 def upload_resume():
@@ -198,7 +81,48 @@ def upload_resume():
     except Exception as e:
         print(f"Error in upload_resume: {str(e)}")
         return jsonify({"error": str(e)}), 500
+@app.route('/api/domains', methods=['GET'])
+def get_domains():
+    return jsonify(DOMAINS)
 
+@app.route('/api/roles/<domain>', methods=['GET'])
+def get_roles(domain):
+    return jsonify(ROLES.get(domain, []))
+
+def generate_behavioral_questions():
+    questions = []
+    
+    intro_system_prompt = """
+    You are a professional interviewer. Generate an introduction question that asks the candidate 
+    to introduce themselves and their background. Keep it professional and concise.
+    Only provide the question without any additional context or explanations.
+    """
+    intro_prompt = "Generate an introduction question for the interview."
+    
+    motivation_system_prompt = """
+    You are a professional interviewer. Generate a question that asks about the candidate's 
+    motivation for applying to this role and what interests them about it.
+    Only provide the question without any additional context or explanations.
+    """
+    motivation_prompt = "Generate a question about role motivation."
+    
+    try:
+        # Generate introduction question
+        intro_response = generate_groq_response(intro_system_prompt, intro_prompt)
+        questions.append({"question": intro_response})
+        
+        # Generate motivation question
+        motivation_response = generate_groq_response(motivation_system_prompt, motivation_prompt)
+        questions.append({"question": motivation_response})
+        
+    except Exception as e:
+        print(f"Error generating behavioral questions: {str(e)}")
+        questions = [
+            {"question": "Could you please introduce yourself and tell us about your background?"},
+            {"question": "What interests you about this role and why did you apply for it?"}
+        ]
+    
+    return questions
 @app.route('/api/submit-answer', methods=['POST', 'OPTIONS'])
 def submit_answer():
     if request.method == 'OPTIONS':
@@ -237,6 +161,155 @@ def submit_answer():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+@app.route('/api/generate-questions', methods=['POST'])
+def generate_questions():
+    try:
+        data = request.json
+        is_custom_job = data.get('isCustomJob', False)
+        job_description = data.get('jobDescription', '')
+        domain = data.get('domain')
+        role = data.get('role')
+        experience = data.get('experience')
+        question_count = data.get('questionCount', 1)
+        resume_text = data.get('resumeText', '')
+
+        if is_custom_job and not job_description:
+            return jsonify({"error": "Job description is required for custom jobs"}), 400
+        elif not is_custom_job and not all([domain, role]):
+            return jsonify({"error": "Domain and role are required for quick setup"}), 400
+        
+        if not experience:
+            return jsonify({"error": "Experience level is required"}), 400
+
+        session['experience'] = experience
+        session['candidate_answers'] = []
+        session['current_question'] = 0
+
+        # Generate behavioral questions first
+        questions = generate_behavioral_questions()
+
+        # Generate technical questions
+        if resume_text:
+            technical_questions = generate_interview_questions(
+                resume_text=resume_text,
+                job_description=job_description if is_custom_job else f"Role: {role} in {domain}",
+                experience_level=experience,
+                num_questions=question_count - 2
+            )
+            questions.extend(technical_questions)
+        else:
+            for i in range(question_count - 2):
+                if is_custom_job:
+                    system_prompt = """
+                    You are a professional technical interviewer.
+                    Based on the following job description, generate a relevant technical interview question.
+                    Only provide the question without any additional context or explanations.
+                    """
+                    question_prompt = f"Generate a technical interview question based on the job requirements: {job_description}"
+                else:
+                    system_prompt = f"""
+                    You are a professional interviewer with expertise in {domain}. 
+                    Your job is to conduct an interview for the role of {role}. 
+                    Generate one structured and insightful technical question suitable for a {experience}-level candidate. 
+                    Ask simple question which can be answered in 2-3 lines max.
+                    Do not include any assessment details or explanations; only provide the question.
+                    There is only one candidate you are interviewing, ask a new question.
+                    Don't give the answer.
+                    """
+                    question_prompt = f"Ask a technical {experience}-level interview question for a {role} in {domain}."
+                
+                try:
+                    response = generate_groq_response(system_prompt, question_prompt)
+                    question = {"question": response}
+                    session[f'question_{i+2}'] = question
+                    questions.append(question)
+                    
+                except Exception as e:
+                    print(f"Error generating question {i}: {str(e)}")
+                    return jsonify({"error": f"Error generating questions: {str(e)}"}), 500
+
+        # Store all questions in session
+        for i, question in enumerate(questions):
+            session[f'question_{i}'] = question
+
+        return jsonify(questions)
+
+    except Exception as e:
+        print(f"Error in generate_questions: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+def generate_feedback(score, candidate_answers):
+    try:
+        # Prepare the answers for analysis
+        answers_text = "\n".join([f"Q: {a['question']}\nA: {a['answer']}" for a in candidate_answers])
+        
+        system_prompt = """
+        You are an expert interview assessor. Based on the candidate's answers and their score,
+        provide detailed feedback in the following format:
+        {
+            "strength": "Main strength of the candidate",
+            "areasOfImprovement": "Key areas that need improvement",
+            "weakness": "Main weakness to address",
+            "overallScore": "numerical_score"
+        }
+        Keep the feedback constructive, specific, and actionable.
+        """
+
+        prompt = f"""
+        Score: {score}
+        Candidate's Answers:
+        {answers_text}
+
+        Please provide detailed feedback addressing the strengths, areas of improvement, and weaknesses.
+        """
+
+        feedback_response = generate_groq_response(system_prompt, prompt)
+        
+        # Parse the response into JSON format
+        try:
+            feedback_dict = json.loads(feedback_response)
+            feedback_dict['overallScore'] = str(score)  # Ensure we keep the original score
+            return feedback_dict
+        except json.JSONDecodeError:
+            # Fallback if JSON parsing fails
+            return {
+                "strength": "Technical knowledge demonstrated",
+                "areasOfImprovement": "Add more specific examples and technical depth",
+                "weakness": "Could provide more detailed explanations",
+                "overallScore": str(score)
+            }
+
+    except Exception as e:
+        print(f"Error in generate_feedback: {str(e)}")
+        # Fallback feedback based on score ranges
+        if score >= 80:
+            return {
+                "strength": "Strong technical knowledge demonstrated",
+                "areasOfImprovement": "Add more specific examples",
+                "weakness": "Could provide more detailed explanations",
+                "overallScore": str(score)
+            }
+        elif score >= 60:
+            return {
+                "strength": "Good basic understanding shown",
+                "areasOfImprovement": "Technical depth, practical examples",
+                "weakness": "Needs more technical specifics",
+                "overallScore": str(score)
+            }
+        elif score >= 40:
+            return {
+                "strength": "Shows fundamental knowledge",
+                "areasOfImprovement": "Technical terms, clarity, depth",
+                "weakness": "Answers lack technical detail",
+                "overallScore": str(score)
+            }
+        else:
+            return {
+                "strength": "Willing to attempt answers",
+                "areasOfImprovement": "Technical knowledge, specificity",
+                "weakness": "Insufficient technical depth",
+                "overallScore": str(score)
+            }
 
 @app.route('/api/get-feedback', methods=['POST'])
 def get_feedback():
@@ -280,36 +353,6 @@ def get_feedback():
             "weakness": "Needs more preparation",
             "overallScore": "50"
         }), 200
-
-def generate_feedback(score):
-    if score >= 80:
-        return {
-            "strength": "Strong technical knowledge demonstrated",
-            "areasOfImprovement": "Add more specific examples",
-            "weakness": "Could provide more detailed explanations",
-            "overallScore": str(score)
-        }
-    elif score >= 60:
-        return {
-            "strength": "Good basic understanding shown",
-            "areasOfImprovement": "Technical depth, practical examples",
-            "weakness": "Needs more technical specifics",
-            "overallScore": str(score)
-        }
-    elif score >= 40:
-        return {
-            "strength": "Shows fundamental knowledge",
-            "areasOfImprovement": "Technical terms, clarity, depth",
-            "weakness": "Answers lack technical detail",
-            "overallScore": str(score)
-        }
-    else:
-        return {
-            "strength": "Willing to attempt answers",
-            "areasOfImprovement": "Technical knowledge, specificity",
-            "weakness": "Insufficient technical depth",
-            "overallScore": str(score)
-        }
 
 @app.route('/api/feedback', methods=['POST'])
 def save_feedback():
@@ -377,18 +420,12 @@ def get_ideal_answer():
         Please provide an analysis of the answer and an ideal response.
         """
 
-        response = client.generate(
-            model="llama3.2:3b",
-            prompt=prompt,
-            system=system_prompt,
-        )
-
-        return jsonify({"response": response['response'].strip()})
+        response = generate_groq_response(system_prompt, prompt)
+        return jsonify({"response": response})
 
     except Exception as e:
         print(f"Error generating ideal answer: {str(e)}")
         return jsonify({"error": str(e)}), 500
-    
 @app.route('/api/users', methods=['POST'])
 def create_user():
     try:
@@ -422,5 +459,6 @@ def get_user(uid):
     except Exception as e:
         print(f"Error retrieving user: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True)

@@ -12,6 +12,10 @@ const api = axios.create({
 });
 
 export const ApiService = {
+  createUser: async (userData: { uid: string; email: string; name: string }): Promise<void> => {
+    await api.post('/users', userData);
+  },
+
   getDomains: async (): Promise<string[]> => {
     const response = await api.get('/domains');
     return response.data;

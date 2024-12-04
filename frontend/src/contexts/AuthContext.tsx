@@ -1,16 +1,22 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { 
   GoogleAuthProvider, 
-  signInWithPopup, 
+  signInWithPopup,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
   signOut, 
   onAuthStateChanged, 
-  User 
+  User,
+  updateProfile
 } from 'firebase/auth';
 import { auth } from '../config/firebase';
+import { ApiService } from '../services/api';
 
 interface AuthContextType {
   currentUser: User | null;
   signInWithGoogle: () => Promise<void>;
+  signInWithEmail: (email: string, password: string) => Promise<void>;
+  signUpWithEmail: (email: string, password: string, name: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -40,9 +46,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signInWithGoogle = async () => {
     const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(auth, provider);
+      await ApiService.createUser({
+        uid: result.user.uid,
+        email: result.user.email!,
+        name: result.user.displayName!
+      });
     } catch (error) {
       console.error('Error signing in with Google:', error);
+      throw error;
+    }
+  };
+
+  const signInWithEmail = async (email: string, password: string) => {
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (error) {
+      console.error('Error signing in with email:', error);
+      throw error;
+    }
+  };
+
+  const signUpWithEmail = async (email: string, password: string, name: string) => {
+    try {
+      const result = await createUserWithEmailAndPassword(auth, email, password);
+      await updateProfile(result.user, { displayName: name });
+      await ApiService.createUser({
+        uid: result.user.uid,
+        email: result.user.email!,
+        name: name
+      });
+    } catch (error) {
+      console.error('Error signing up with email:', error);
+      throw error;
     }
   };
 
@@ -51,12 +87,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await signOut(auth);
     } catch (error) {
       console.error('Error signing out:', error);
+      throw error;
     }
   };
 
   const value = {
     currentUser,
     signInWithGoogle,
+    signInWithEmail,
+    signUpWithEmail,
     logout,
   };
 

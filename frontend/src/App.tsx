@@ -10,6 +10,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import SpeechRecognitionProvider from './components/SpeechRecognitionProvider';
 import { Home } from './components/Home';
 import { Login } from './components/Login';
+import { Signup } from './components/Signup';
 import { InterviewDashboard } from './components/InterviewDashboard';
 import { useAuth } from './contexts/AuthContext';
 
@@ -18,12 +19,12 @@ const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   return currentUser ? <>{children}</> : <Navigate to="/login" />;
 };
 
-// Create routes with future flags enabled
 const router = createBrowserRouter(
   createRoutesFromElements(
     <Route>
       <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/signup" element={<Signup />} />
       <Route 
         path="/interview" 
         element={

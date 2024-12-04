@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { BrainCircuit, Mail, Lock, AlertCircle } from 'lucide-react';
+import { BrainCircuit, Mail, Lock, User, AlertCircle } from 'lucide-react';
 
 const GeometricShapes = () => (
   <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -12,38 +12,103 @@ const GeometricShapes = () => (
   </div>
 );
 
-export const Login: React.FC = () => {
+export const Signup: React.FC = () => {
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [errors, setErrors] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
-  const { signInWithGoogle, signInWithEmail } = useAuth();
+  const { signUpWithEmail, signInWithGoogle } = useAuth();
   const navigate = useNavigate();
 
-  const handleEmailSignIn = async (e: React.FormEvent) => {
+  const validateForm = () => {
+    const newErrors: string[] = [];
+    
+    // Name validation
+    if (name.length < 2) {
+      newErrors.push('Name must be at least 2 characters long');
+    }
+    
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      newErrors.push('Please enter a valid email address');
+    }
+    
+    // Password validation
+    if (password.length < 8) {
+      newErrors.push('Password must be at least 8 characters long');
+    }
+    if (!/\d/.test(password)) {
+      newErrors.push('Password must contain at least one number');
+    }
+    if (!/[A-Z]/.test(password)) {
+      newErrors.push('Password must contain at least one uppercase letter');
+    }
+    
+    setErrors(newErrors);
+    return newErrors.length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!validateForm()) {
+      return;
+    }
+    
     try {
-      setError('');
+      setErrors([]);
       setLoading(true);
-      await signInWithEmail(email, password);
+      await signUpWithEmail(email, password, name);
       navigate('/interview');
     } catch (error: any) {
-      setError('Failed to sign in. Please check your credentials.');
-      console.error('Error signing in:', error);
+      // Handle specific Firebase error codes
+      const errorCode = error?.code;
+      switch (errorCode) {
+        case 'auth/email-already-in-use':
+          setErrors(['This email address is already registered']);
+          break;
+        case 'auth/invalid-email':
+          setErrors(['Please enter a valid email address']);
+          break;
+        case 'auth/weak-password':
+          setErrors(['Password is too weak. Please choose a stronger password']);
+          break;
+        case 'auth/network-request-failed':
+          setErrors(['Network error. Please check your internet connection']);
+          break;
+        default:
+          setErrors(['An unexpected error occurred. Please try again']);
+      }
+      console.error('Error signing up:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGoogleSignIn = async () => {
+  const handleGoogleSignUp = async () => {
     try {
-      setError('');
+      setErrors([]);
       setLoading(true);
       await signInWithGoogle();
       navigate('/interview');
-    } catch (error) {
-      setError('Failed to sign in with Google.');
-      console.error('Error signing in:', error);
+    } catch (error: any) {
+      const errorCode = error?.code;
+      switch (errorCode) {
+        case 'auth/popup-closed-by-user':
+          setErrors(['Sign up was cancelled. Please try again']);
+          break;
+        case 'auth/popup-blocked':
+          setErrors(['Pop-up was blocked. Please allow pop-ups for this site']);
+          break;
+        case 'auth/account-exists-with-different-credential':
+          setErrors(['An account already exists with this email']);
+          break;
+        default:
+          setErrors(['Failed to sign up with Google. Please try again']);
+      }
+      console.error('Error signing up:', error);
     } finally {
       setLoading(false);
     }
@@ -61,21 +126,49 @@ export const Login: React.FC = () => {
         </div>
         
         <h2 className="mt-6 text-center font-mono">
-          <span className="text-4xl font-bold block text-teal-900">Welcome Back</span>
-          <span className="text-teal-700 mt-2 block">Sign in to continue your practice</span>
+          <span className="text-4xl font-bold block text-teal-900">Create Account</span>
+          <span className="text-teal-700 mt-2 block">Join us to start practicing</span>
         </h2>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md relative z-10">
         <div className="bg-white/80 backdrop-blur-sm py-8 px-4 shadow-lg border border-yellow-200 sm:rounded-2xl sm:px-10">
-          {error && (
-            <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 flex items-center gap-2 text-red-700">
-              <AlertCircle className="h-5 w-5 flex-shrink-0" />
-              <p className="text-sm">{error}</p>
+          {errors.length > 0 && (
+            <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700">
+              <div className="flex items-center gap-2 mb-2">
+                <AlertCircle className="h-5 w-5 flex-shrink-0" />
+                <p className="font-medium">Please fix the following errors:</p>
+              </div>
+              <ul className="list-disc ml-5 space-y-1">
+                {errors.map((error, index) => (
+                  <li key={index} className="text-sm">
+                    {error}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 
-          <form onSubmit={handleEmailSignIn} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <label htmlFor="name" className="block text-sm font-medium text-teal-700">
+                Full Name
+              </label>
+              <div className="mt-1 relative">
+                <input
+                  id="name"
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="appearance-none block w-full px-3 py-2 border border-yellow-200 rounded-lg 
+                    placeholder-gray-400 focus:outline-none focus:ring-yellow-400 focus:border-yellow-400
+                    text-teal-900"
+                  required
+                />
+                <User className="absolute right-3 top-2.5 h-5 w-5 text-teal-400" />
+              </div>
+            </div>
+
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-teal-700">
                 Email address
@@ -122,7 +215,7 @@ export const Login: React.FC = () => {
                 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-400
                 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              Sign in
+              Sign up
             </button>
           </form>
 
@@ -137,21 +230,21 @@ export const Login: React.FC = () => {
             </div>
 
             <button
-              onClick={handleGoogleSignIn}
+              onClick={handleGoogleSignUp}
               disabled={loading}
               className="mt-6 w-full flex justify-center py-2 px-4 border border-yellow-200 
                 rounded-lg text-sm font-medium text-teal-900 bg-white hover:bg-yellow-50
                 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-400
                 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              Sign in with Google
+              Sign up with Google
             </button>
           </div>
 
           <p className="mt-6 text-center text-sm text-teal-700">
-            Don't have an account?{' '}
-            <Link to="/signup" className="font-medium text-yellow-600 hover:text-yellow-500">
-              Sign up
+            Already have an account?{' '}
+            <Link to="/login" className="font-medium text-yellow-600 hover:text-yellow-500">
+              Sign in
             </Link>
           </p>
         </div>
@@ -160,4 +253,4 @@ export const Login: React.FC = () => {
   );
 };
 
-export default Login;
+export default Signup;
